@@ -2,7 +2,7 @@
 # Cookbook Name:: hadoop
 # Recipe:: hadoop_mapreduce_jobtracker
 #
-# Copyright (C) 2013-2014 Continuuity, Inc.
+# Copyright © 2013-2015 Cask Data, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,9 +18,11 @@
 #
 
 include_recipe 'hadoop::default'
+include_recipe 'hadoop::_system_tuning'
+pkg = 'hadoop-0.20-mapreduce-jobtracker'
 
 # TODO: check for these and set them up
-# mapreduce.jobtracker.system.dir = #{hadoop_tmp_dir}/mapred/system
+# mapreduce.jobtracker.system.dir = #{hadoop_tmp_dir}/mapred/system (inside HDFS) = mapred.system.dir
 # mapreduce.jobtracker.staging.root.dir = #{hadoop_tmp_dir}/mapred/staging
 # mapreduce.cluster.temp.dir = #{hadoop_tmp_dir}/mapred/temp
 
@@ -45,14 +47,27 @@ mapred_local_dirs.split(',').each do |dir|
   end
 end
 
-# Only CDH supports a JobTracker package
-package 'hadoop-0.20-mapreduce-jobtracker' do
-  action :install
+package pkg do
+  action :nothing
+end
+
+# Hack to prevent auto-start of services, see COOK-26
+ruby_block "package-#{pkg}" do
+  block do
+    begin
+      Chef::Resource::RubyBlock.send(:include, Hadoop::Helpers)
+      policy_rcd('disable') if node['platform_family'] == 'debian'
+      resources("package[#{pkg}]").run_action(:install)
+    ensure
+      policy_rcd('enable') if node['platform_family'] == 'debian'
+    end
+  end
+  # Only CDH supports a JobTracker package
   only_if { node['hadoop']['distribution'] == 'cdh' }
 end
 
-service 'hadoop-0.20-mapreduce-jobtracker' do
-  status_command 'service hadoop-0.20-mapreduce-jobtracker status'
+service pkg do
+  status_command "service #{pkg} status"
   supports [:restart => true, :reload => false, :status => true]
   action :nothing
   only_if { node['hadoop']['distribution'] == 'cdh' }

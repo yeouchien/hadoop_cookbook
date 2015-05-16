@@ -2,7 +2,7 @@
 # Cookbook Name:: hadoop
 # Recipe:: hadoop_yarn_nodemanager
 #
-# Copyright (C) 2013-2014 Continuuity, Inc.
+# Copyright © 2013-2015 Cask Data, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,18 +18,25 @@
 #
 
 include_recipe 'hadoop::default'
+include_recipe 'hadoop::_system_tuning'
+pkg = 'hadoop-yarn-nodemanager'
 
-package 'hadoop-yarn-nodemanager' do
-  action :install
+package pkg do
+  action :nothing
 end
 
-# TODO: check for these and set them up
-# mapreduce.cluster.local.dir = #{hadoop_tmp_dir}/mapred/local
-# mapreduce.jobtracker.system.dir = #{hadoop_tmp_dir}/mapred/system
-# mapreduce.jobtracker.staging.root.dir = #{hadoop_tmp_dir}/mapred/staging
-# mapreduce.cluster.temp.dir = #{hadoop_tmp_dir}/mapred/temp
-
-# yarn.app.mapreduce.am.staging-dir = /tmp/hadoop-yarn/staging
+# Hack to prevent auto-start of services, see COOK-26
+ruby_block "package-#{pkg}" do
+  block do
+    begin
+      Chef::Resource::RubyBlock.send(:include, Hadoop::Helpers)
+      policy_rcd('disable') if node['platform_family'] == 'debian'
+      resources("package[#{pkg}]").run_action(:install)
+    ensure
+      policy_rcd('enable') if node['platform_family'] == 'debian'
+    end
+  end
+end
 
 %w(yarn.nodemanager.local-dirs yarn.nodemanager.log-dirs).each do |opt|
   next unless node['hadoop'].key?('yarn_site') && node['hadoop']['yarn_site'].key?(opt)
@@ -44,8 +51,23 @@ end
   end
 end
 
-service 'hadoop-yarn-nodemanager' do
-  status_command 'service hadoop-yarn-nodemanager status'
+# Ensure permissions for secure Hadoop... this *should* be no-op
+container_executor_path =
+  if node['hadoop']['distribution'] == 'hdp' && (node['hadoop']['distribution_version'].to_s == '2' || \
+                                                 node['hadoop']['distribution_version'].to_f == 2.2)
+    '/usr/hdp/current/hadoop-yarn-nodemanager/bin'
+  else
+    '/usr/lib/hadoop-yarn/bin'
+  end
+
+file "#{container_executor_path}/container-executor" do
+  owner 'root'
+  group 'yarn'
+  mode '6050'
+end
+
+service pkg do
+  status_command "service #{pkg} status"
   supports [:restart => true, :reload => false, :status => true]
   action :nothing
 end

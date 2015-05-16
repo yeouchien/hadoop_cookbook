@@ -1,17 +1,21 @@
 require 'spec_helper'
 
 describe 'hadoop::default' do
-  context 'on Centos 6.4 x86_64' do
+  context 'on Centos 6.6' do
     let(:chef_run) do
-      ChefSpec::Runner.new(platform: 'centos', version: 6.4) do |node|
+      ChefSpec::SoloRunner.new(platform: 'centos', version: 6.6) do |node|
         node.automatic['domain'] = 'example.com'
         node.default['hadoop']['hdfs_site']['dfs.datanode.max.transfer.threads'] = '4096'
         node.default['hadoop']['hadoop_policy']['test.property'] = 'blue'
+        node.default['hadoop']['hadoop_metrics']['something.something'] = 'dark.side'
         node.default['hadoop']['mapred_site']['mapreduce.framework.name'] = 'yarn'
+        node.default['hadoop']['mapred_env']['my_test_variable'] = 'test'
         node.default['hadoop']['fair_scheduler']['defaults']['poolMaxJobsDefault'] = '1000'
-        node.default['hadoop']['hadoop_env']['hadoop_log_dir'] = '/var/log/hadoop-hdfs'
+        node.default['hadoop']['container_executor']['banned.users'] = 'root'
+        node.default['hadoop']['hadoop_env']['hadoop_log_dir'] = '/data/log/hadoop-hdfs'
         node.default['hadoop']['yarn_env']['yarn_log_dir'] = '/var/log/hadoop-yarn'
-        stub_command('update-alternatives --display hadoop-conf | grep best | awk \'{print $5}\' | grep /etc/hadoop/conf.chef').and_return(false)
+        stub_command(/update-alternatives --display /).and_return(false)
+        stub_command(/test -L /).and_return(false)
       end.converge(described_recipe)
     end
 
@@ -34,21 +38,38 @@ describe 'hadoop::default' do
       end
     end
 
-    %w(hadoop-hdfs hadoop-yarn).each do |dir|
-      it "creates /var/log/#{dir} directory" do
-        expect(chef_run).to create_directory("/var/log/#{dir}").with(
-          mode: '0755'
-        )
-      end
+    it 'creates /var/log/hadoop-yarn' do
+      expect(chef_run).to create_directory('/var/log/hadoop-yarn').with(
+        mode: '0775'
+      )
+    end
+
+    it 'deletes /var/log/hadoop-hdfs' do
+      expect(chef_run).to delete_directory('/var/log/hadoop-hdfs')
+    end
+
+    it 'creates /data/log/hadoop-hdfs' do
+      expect(chef_run).to create_directory('/data/log/hadoop-hdfs').with(
+        mode: '0775'
+      )
+    end
+
+    it 'creates /var/log/hadoop-hdfs symlink' do
+      link = chef_run.link('/var/log/hadoop-hdfs')
+      expect(link).to link_to('/data/log/hadoop-hdfs')
     end
 
     %w(
       capacity-scheduler.xml
+      container-executor.cfg
       core-site.xml
       fair-scheduler.xml
       hadoop-env.sh
+      hadoop-metrics.properties
       hadoop-policy.xml
       hdfs-site.xml
+      log4j.properties
+      mapred-env.sh
       mapred-site.xml
       yarn-env.sh
       yarn-site.xml
@@ -104,6 +125,20 @@ describe 'hadoop::default' do
       expect(chef_run).to render_file('/etc/hadoop/conf.chef/yarn-env.sh').with_content(
         /YARN_LOG_DIR/
       )
+    end
+
+    it 'runs execute[fix-hdp-jsvc-path]' do
+      expect(chef_run).to run_execute('fix-hdp-jsvc-path')
+    end
+
+    it 'sets limits for hdfs/mapred/yarn' do
+      %w(hdfs mapred yarn).each do |u|
+        expect(chef_run).to create_ulimit_domain(u)
+      end
+    end
+
+    it 'deletes redundant mapreduce limits' do
+      expect(chef_run).to delete_file('/etc/security/limits.d/mapreduce.conf')
     end
 
     it 'runs execute[update hadoop-conf alternatives]' do
