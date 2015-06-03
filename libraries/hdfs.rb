@@ -138,8 +138,8 @@ module Hadoop
     # @result Integer
     def perms_to_octal(perms)
       u = perms.split('')[1,3]
-      g = perms.split('')[4,6]
-      o = perms.split('')[7,9]
+      g = perms.split('')[4,3]
+      o = perms.split('')[7,3]
       octal = perms.split('')[9] == 't' ? 1000 : 0
       u.each do |p|
         octal = octal + (perms_char_to_int(p) * 100)
