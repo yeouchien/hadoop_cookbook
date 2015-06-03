@@ -116,5 +116,39 @@ module Hadoop
       mso.run_command
       mso.stdout # | awk '{k=0; for(i=0;i<=8;i++) k+=((substr($1,i+2,1)~/[rwx]/)*2^(8-i));if (k) printf(" %0o ",k); print}'
     end
+
+    # Convert a single character to it's representation as a permission octal value
+    #
+    # @result Integer
+    def perms_char_to_int(char)
+      case char
+      when 'r'
+        4
+      when 'w'
+        2
+      when 'x', 't'
+        1
+      end
+    end
+
+    # Get octal permissions from string permissions
+    #
+    # @result Integer
+    def perms_to_octal(perms)
+      u = perms.split('')[1,3]
+      g = perms.split('')[4,6]
+      o = perms.split('')[7,9]
+      octal = perms.split('')[9] == 't' ? 1000 : 0
+      u.each do |p|
+        octal = octal + (perms_char_to_int(p) * 100)
+      end
+      g.each do |p|
+        octal = octal + (perms_char_to_int(p) * 10)
+      end
+      o.each do |p|
+        octal = octal + perms_char_to_int(p)
+      end
+      octal
+    end
   end
 end
