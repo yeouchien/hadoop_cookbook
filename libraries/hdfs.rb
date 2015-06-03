@@ -101,7 +101,7 @@ module Hadoop
       Chef::Log.debug("Hadoop::Hdfs.chmod #{mode} #{path}")
     end
 
-    # Get permissions from an HDFS path
+    # Get string permissions from an HDFS path
     #
     # @result String
     def hdfs_perms(path)
@@ -128,6 +128,8 @@ module Hadoop
         2
       when 'x', 't'
         1
+      else
+        0
       end
     end
 
