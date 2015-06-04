@@ -136,6 +136,7 @@ module Hadoop
     # Get octal permissions from string permissions
     #
     # @result Integer
+    # rubocop: disable Metrics/AbcSize
     def perms_to_octal(perms)
       octal = perms.split('')[9] == 't' ? 1000 : 0
       perms.split('')[1, 3].each do |p|
@@ -149,5 +150,6 @@ module Hadoop
       end
       octal
     end
+    # rubocop: enable Metrics/AbcSize
   end
 end
