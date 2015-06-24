@@ -57,7 +57,7 @@ unless node['spark']['release']['install'].to_s == 'false'
     elsif node['hadoop']['distribution_version'].to_f == 5.0 || node['hadoop']['distribution_version'].to_f == 5.1
       spark_release = 'hadoop2.3'
     else
-      spark_release = 'hadoop2.4'
+      spark_release = 'hadoop2.6'
     end
   when 'hdp'
     if node['hadoop']['distribution_version'] == '2' || node['hadoop']['distribution_version'].to_f == 2.1
